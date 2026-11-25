@@ -1,9 +1,9 @@
-"""Paths and settings for one bucks-browser checkout.
+"""Paths and settings for one bucks-chromium checkout.
 
 Layout:
-    bucks-browser/            this repository
-    bucks-browser/src/        the Chromium checkout (created by `bucks init`)
-    bucks-browser/src/bucks   the bucks-core repository (symlink or gclient solution)
+    bucks-chromium/            this repository
+    bucks-chromium/src/        the Chromium checkout (created by `bucks init`)
+    bucks-chromium/src/bucks   the bucks-core repository (symlink or gclient solution)
     ../bucks-core             default location of bucks-core next to this repository
 """
 from __future__ import annotations

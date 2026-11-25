@@ -13,17 +13,17 @@ jobs:
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v4
-        with: { path: bucks-browser, clean: false }
+        with: { path: bucks-chromium, clean: false }
       - uses: actions/checkout@v4
         with: { repository: "${{ github.repository_owner }}/bucks-core", path: bucks-core }
       - name: Fetch or sync Chromium
-        working-directory: bucks-browser
+        working-directory: bucks-chromium
         run: |
           ./bucks doctor
           if [ -d src/.git ]; then ./bucks sync; else ./bucks init; fi
       - name: Patches apply
-        working-directory: bucks-browser
+        working-directory: bucks-chromium
         run: ./bucks patches check
       - name: Build
-        working-directory: bucks-browser
+        working-directory: bucks-chromium
         run: ./bucks build "${{ inputs.profile }}" --sccache

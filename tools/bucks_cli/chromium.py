@@ -56,7 +56,7 @@ def link_core(cfg: Config) -> None:
     if cfg.core_url or cfg.core_in_src.exists():
         return
     if not cfg.core.is_dir():
-        sys.exit(f"bucks-core not found at {cfg.core} (set BUCKS_CORE or clone it next to bucks-browser).")
+        sys.exit(f"bucks-core not found at {cfg.core} (set BUCKS_CORE or clone it next to bucks-chromium).")
     cfg.core_in_src.symlink_to(cfg.core, target_is_directory=True)
     print(f"linked {cfg.core_in_src} -> {cfg.core}")
 

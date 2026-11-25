@@ -5,10 +5,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { path: bucks-browser }
+        with: { path: bucks-chromium }
       - uses: actions/checkout@v4
         with: { repository: "${{ github.repository_owner }}/bucks-core", path: bucks-core }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: python3 -m unittest discover -s tests -v
-        working-directory: bucks-browser
+        working-directory: bucks-chromium

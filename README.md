@@ -1,4 +1,4 @@
-# bucks-browser
+# bucks-chromium
 
 Fetches Chromium at a pinned stable version, adds the Bucks layer ([bucks-core](../bucks-core)) and
 builds the Bucks browser. Plan: `Bucks-Browser-Release-2026-10-27/docs/CHROMIUM-FORK-PLAN.md`.
@@ -26,9 +26,9 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/dep
 export PATH="$HOME/depot_tools:$PATH"
 
 # 2. this repo and bucks-core side by side
-git clone <bucks-browser url> bucks-browser
-git clone <bucks-core url> bucks-core
-cd bucks-browser
+git clone https://github.com/infin8sync69-source/bucks-chromium.git
+git clone https://github.com/infin8sync69-source/bucks-core.git
+cd bucks-chromium
 
 # 3. check the machine, fetch Chromium (about 100 GB, takes a while), apply Bucks patches
 ./bucks doctor
