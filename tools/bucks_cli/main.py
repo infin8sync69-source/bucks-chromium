@@ -32,6 +32,8 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("profile", help="args profile in bucks-core/build/args, e.g. linux_debug")
     b.add_argument("--target", help="ninja target (default: chrome, or chrome_public_apk for android)")
     b.add_argument("--sccache", action="store_true", help="compile through sccache")
+    b.add_argument("--time-limit", type=float, metavar="MINUTES",
+                   help="stop cleanly after this long (exit code 3); run again to continue")
 
     v = sub.add_parser("version", help="show or change the pinned Chromium version")
     v_sub = v.add_subparsers(dest="action", required=True)
@@ -69,7 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "sync":
         chromium.sync(cfg)
     elif args.cmd == "build":
-        chromium.build(cfg, args.profile, args.target, args.sccache)
+        if not chromium.build(cfg, args.profile, args.target, args.sccache, args.time_limit):
+            return 3
     elif args.cmd == "patches":
         return _patches(cfg, args)
     return 0

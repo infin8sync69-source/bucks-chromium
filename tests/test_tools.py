@@ -124,7 +124,19 @@ class PatchesTest(unittest.TestCase):
 class BuildTest(unittest.TestCase):
     def test_profiles(self):
         self.assertEqual(chromium.profiles(config.load()),
-                         ["android_release", "linux_debug", "linux_release", "mac_release", "win_release"])
+                         ["android_release", "linux_ci", "linux_debug", "linux_release", "mac_release",
+                          "win_release"])
+
+    def test_time_limit_stops_and_reports(self):
+        with tempfile.TemporaryDirectory() as d:
+            marker = Path(d) / "interrupted"
+            # A stand-in for a build that cleans up on SIGINT, as ninja and siso do.
+            script = f"trap 'touch {marker}; exit 130' INT; sleep 30 & wait"
+            self.assertFalse(chromium.run_with_time_limit(["sh", "-c", script], Path(d), 0.5))
+            self.assertTrue(marker.exists())
+            self.assertTrue(chromium.run_with_time_limit(["true"], Path(d), 5))
+            with self.assertRaises(subprocess.CalledProcessError):
+                chromium.run_with_time_limit(["false"], Path(d), 5)
 
     def test_gn_args(self):
         self.assertEqual(chromium.gn_args("linux_debug", sccache=True),

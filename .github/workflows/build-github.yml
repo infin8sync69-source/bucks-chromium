@@ -1,0 +1,83 @@
+# Builds the Bucks browser on GitHub's free machines, as a chain of up to 8 stages of under 6 hours
+# each (see build-stage.yml). Free and unlimited because this repo is public; bucks-core stays private
+# and is read with a deploy key. The finished browser appears as an artifact of the run.
+name: build (GitHub machines)
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "args profile"
+        default: linux_ci
+concurrency:
+  group: build-github-${{ inputs.profile }}
+  cancel-in-progress: false
+jobs:
+  stage1:
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 1
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage2:
+    needs: stage1
+    if: needs.stage1.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 2
+      previous: "1"
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage3:
+    needs: stage2
+    if: needs.stage2.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 3
+      previous: "2"
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage4:
+    needs: stage3
+    if: needs.stage3.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 4
+      previous: "3"
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage5:
+    needs: stage4
+    if: needs.stage4.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 5
+      previous: "4"
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage6:
+    needs: stage5
+    if: needs.stage5.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 6
+      previous: "5"
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage7:
+    needs: stage6
+    if: needs.stage6.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 7
+      previous: "6"
+      profile: ${{ inputs.profile }}
+    secrets: inherit
+  stage8:
+    needs: stage7
+    if: needs.stage7.outputs.done != 'true'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      stage: 8
+      previous: "7"
+      profile: ${{ inputs.profile }}
+    secrets: inherit

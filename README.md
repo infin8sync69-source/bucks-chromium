@@ -51,7 +51,7 @@ it in `chromium.json` as `core_url` and gclient fetches it into `src/bucks` inst
 | `./bucks init [--android]` | Writes `.gclient`, fetches the pinned Chromium tag, links `src/bucks`, runs hooks, applies patches |
 | `./bucks sync` | Reverts patches, moves the checkout to the pinned version, re-applies patches |
 | `./bucks patches status\|apply\|check\|update\|add <path>\|revert` | Patches to upstream files (rules in bucks-core `PATCHES.md`) |
-| `./bucks build <profile> [--sccache] [--target T]` | `gn gen` and `autoninja` for a profile in `bucks-core/build/args` |
+| `./bucks build <profile> [--sccache] [--target T] [--time-limit MIN]` | `gn gen` and `autoninja` for a profile in `bucks-core/build/args`; with a time limit it stops cleanly and exits 3, and a later run continues |
 | `./bucks version show\|latest\|pin <v>\|pin --latest` | Shows or changes the pinned Chromium version |
 
 ## Updating Chromium (every release)
@@ -75,6 +75,24 @@ python3 -m unittest discover -s tests
 They test the tools themselves, including applying the real branding patch to the real upstream
 `BRANDING` file (`tests/fixtures/BRANDING.upstream`, from Chromium 158.0.8127.88, BSD licence).
 They do not need a Chromium checkout.
+
+## Building on GitHub's free machines
+
+`bucks-chromium` is public, so GitHub runs its workflows for free. Their machines are small (4 cores,
+16 GB RAM) and a job may run at most 6 hours, so the **build (GitHub machines)** workflow builds in
+stages: each stage builds until shortly before the limit, stops cleanly (`./bucks build --time-limit`)
+and hands its output to the next stage. Expect most of a day for a full build. It uses the `linux_ci`
+profile (optimised, no link-time optimisation, no symbols), which is for testing; official releases
+use `linux_release` on a bigger machine (`build (own server)` workflow).
+
+Start it from the Actions tab, or:
+
+```bash
+gh workflow run build-github.yml -R infin8sync69-source/bucks-chromium
+```
+
+The finished browser is the `bucks-linux_ci` artifact of the run (`tar --zstd -xf` it, then run
+`./chrome`).
 
 ## CI setup (once)
 

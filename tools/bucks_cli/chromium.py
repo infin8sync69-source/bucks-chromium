@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
 import pprint
 import shutil
+import signal
 import subprocess
 import sys
 import urllib.request
@@ -104,7 +106,34 @@ def gn_args(profile: str, sccache: bool) -> str:
     return "\n".join(lines)
 
 
-def build(cfg: Config, profile: str, target: str | None, sccache: bool) -> None:
+def run_with_time_limit(cmd: list[str], cwd: Path, seconds: float | None) -> bool:
+    """Runs cmd. Returns False if it was stopped at the time limit, True if it finished.
+
+    At the limit the whole process group gets SIGINT, which makes the build tool stop its compile
+    jobs and exit with its state consistent, so a later run (possibly on another machine, after the
+    output directory is restored) continues where this one stopped.
+    """
+    print("+", " ".join(cmd), flush=True)
+    proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+    try:
+        code = proc.wait(timeout=seconds)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGINT)
+        try:
+            proc.wait(timeout=300)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+        print("time limit reached: build stopped, run it again to continue", flush=True)
+        return False
+    if code != 0:
+        raise subprocess.CalledProcessError(code, cmd)
+    return True
+
+
+def build(cfg: Config, profile: str, target: str | None, sccache: bool,
+          time_limit_min: float | None = None) -> bool:
+    """Builds a profile. Returns False if the time limit stopped it before the end."""
     if profile not in profiles(cfg):
         sys.exit(f"unknown profile {profile!r}; choose one of: {', '.join(profiles(cfg))}")
     _require("gn")
@@ -112,4 +141,5 @@ def build(cfg: Config, profile: str, target: str | None, sccache: bool) -> None:
     out = f"out/{profile}"
     _run(["gn", "gen", out, f"--args={gn_args(profile, sccache)}"], cfg.src)
     target = target or TARGETS.get(profile.split("_")[0], "chrome")
-    _run(["autoninja", "-C", out, target, "bucks"], cfg.src)
+    seconds = time_limit_min * 60 if time_limit_min is not None else None
+    return run_with_time_limit(["autoninja", "-C", out, target, "bucks"], cfg.src, seconds)

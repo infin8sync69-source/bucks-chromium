@@ -1,6 +1,6 @@
 # Full Chromium build on the Bucks build server (a self-hosted runner labelled chromium-builder,
 # with depot_tools on PATH). Started by hand until the server exists.
-name: build
+name: build (own server)
 on:
   workflow_dispatch:
     inputs:
