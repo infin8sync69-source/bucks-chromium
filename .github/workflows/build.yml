@@ -15,7 +15,10 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: bucks-chromium, clean: false }
       - uses: actions/checkout@v4
-        with: { repository: "${{ github.repository_owner }}/bucks-core", path: bucks-core }
+        with:
+          repository: "${{ github.repository_owner }}/bucks-core"
+          path: bucks-core
+          ssh-key: "${{ secrets.BUCKS_CORE_DEPLOY_KEY }}"  # read-only deploy key of bucks-core
       - name: Fetch or sync Chromium
         working-directory: bucks-chromium
         run: |

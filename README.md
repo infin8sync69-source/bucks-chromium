@@ -75,3 +75,13 @@ python3 -m unittest discover -s tests
 They test the tools themselves, including applying the real branding patch to the real upstream
 `BRANDING` file (`tests/fixtures/BRANDING.upstream`, from Chromium 158.0.8127.88, BSD licence).
 They do not need a Chromium checkout.
+
+## CI setup (once)
+
+Both repos are private, and each one's CI checks out the other, which GitHub's built-in CI token cannot
+do. Each repo therefore gets a read-only deploy key, stored as a secret in the other repo:
+
+| Secret | Stored in | Deploy key added to |
+|---|---|---|
+| `BUCKS_CORE_DEPLOY_KEY` | bucks-chromium | bucks-core (read-only) |
+| `BUCKS_CHROMIUM_DEPLOY_KEY` | bucks-core | bucks-chromium (read-only) |
