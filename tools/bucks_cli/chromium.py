@@ -142,4 +142,6 @@ def build(cfg: Config, profile: str, target: str | None, sccache: bool,
     _run(["gn", "gen", out, f"--args={gn_args(profile, sccache)}"], cfg.src)
     target = target or TARGETS.get(profile.split("_")[0], "chrome")
     seconds = time_limit_min * 60 if time_limit_min is not None else None
-    return run_with_time_limit(["autoninja", "-C", out, target, "bucks"], cfg.src, seconds)
+    # Only the browser target for now: //bucks joins the build (and this list) once a patch to
+    # Chromium's root BUILD.gn references it, which comes with the first real Bucks feature.
+    return run_with_time_limit(["autoninja", "-C", out, target], cfg.src, seconds)
