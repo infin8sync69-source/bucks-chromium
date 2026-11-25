@@ -131,12 +131,31 @@ class BuildTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             marker = Path(d) / "interrupted"
             # A stand-in for a build that cleans up on SIGINT, as ninja and siso do.
-            script = f"trap 'touch {marker}; exit 130' INT; sleep 30 & wait"
-            self.assertFalse(chromium.run_with_time_limit(["sh", "-c", script], Path(d), 0.5))
+            script = f"trap 'touch {marker}; exit 130' INT; while :; do sleep 0.1; done"
+            self.assertFalse(chromium.run_with_time_limit(["sh", "-c", script], Path(d), 0.5, grace=10))
             self.assertTrue(marker.exists())
             self.assertTrue(chromium.run_with_time_limit(["true"], Path(d), 5))
             with self.assertRaises(subprocess.CalledProcessError):
                 chromium.run_with_time_limit(["false"], Path(d), 5)
+
+    def test_time_limit_waits_for_the_real_build_tool(self):
+        # autoninja exits on SIGINT at once while siso, its child, is still saving state. The stop must
+        # wait for the child, or the saved output directory holds an incomplete state file.
+        with tempfile.TemporaryDirectory() as d:
+            marker = Path(d) / "state-saved"
+            child = ("import pathlib, signal, time\n"
+                     "def stop(*_):\n"
+                     "    time.sleep(1)\n"
+                     f"    pathlib.Path({str(marker)!r}).touch()\n"
+                     "    raise SystemExit(0)\n"
+                     "signal.signal(signal.SIGINT, stop)\n"
+                     "while True: time.sleep(0.1)\n")
+            wrapper = ("import subprocess, sys, time\n"
+                       f"subprocess.Popen([sys.executable, '-c', {child!r}])\n"
+                       "time.sleep(30)\n")
+            self.assertFalse(chromium.run_with_time_limit([sys.executable, "-c", wrapper], Path(d), 1,
+                                                          grace=10))
+            self.assertTrue(marker.exists(), "returned before the child saved its state")
 
     def test_gn_args(self):
         self.assertEqual(chromium.gn_args("linux_debug", sccache=True),

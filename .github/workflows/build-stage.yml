@@ -84,7 +84,9 @@ jobs:
       - name: Pack the source
         if: inputs.stage == 1
         run: |
-          tar -C "$WORK/bucks-chromium" -cf - src | zstd -T0 -3 | split -b 2G - "$WORK/archive/src.tar.zst."
+          # posix format keeps sub-second file times; the build tool compares them, and gnu tar's
+          # default (whole seconds) makes every file look changed after a restore.
+          tar --format=posix -C "$WORK/bucks-chromium" -cf - src | zstd -T0 -3 | split -b 2G - "$WORK/archive/src.tar.zst."
           ls -lh "$WORK/archive"
       - name: Save the source for later stages
         if: inputs.stage == 1
@@ -123,6 +125,8 @@ jobs:
           cat "$WORK"/archive/out.tar.zst.* | zstd -d | tar -x -C "$WORK/bucks-chromium/src"
           rm -f "$WORK"/archive/*
           ln -sfn "$WORK/bucks-core" "$WORK/bucks-chromium/src/bucks"
+          echo "build state restored:"
+          ls -la --time-style=full-iso "$WORK/bucks-chromium/src/out/$PROFILE" | grep -E ' \.(siso|ninja)' || echo "  none found"
           df -h / /mnt
 
       # ---- every stage: build until shortly before the time limit ----------------------------------
@@ -149,7 +153,10 @@ jobs:
       - name: Pack the build output
         if: steps.build.outputs.done == 'false'
         run: |
-          tar -C "$WORK/bucks-chromium/src" -cf - out | zstd -T0 -3 | split -b 2G - "$WORK/archive/out.tar.zst."
+          echo "build state to save:"
+          ls -la --time-style=full-iso "$WORK/bucks-chromium/src/out/$PROFILE" | grep -E ' \.(siso|ninja)' || echo "  none found"
+          du -sh "$WORK/bucks-chromium/src/out"
+          tar --format=posix -C "$WORK/bucks-chromium/src" -cf - out | zstd -T0 -3 | split -b 2G - "$WORK/archive/out.tar.zst."
           ls -lh "$WORK/archive"
       - name: Save the build output for the next stage
         if: steps.build.outputs.done == 'false'

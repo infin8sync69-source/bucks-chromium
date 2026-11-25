@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -106,12 +107,28 @@ def gn_args(profile: str, sccache: bool) -> str:
     return "\n".join(lines)
 
 
-def run_with_time_limit(cmd: list[str], cwd: Path, seconds: float | None) -> bool:
+def _wait_group_gone(pgid: int, seconds: float) -> bool:
+    """Waits until no process of the group is left. Returns False if some were still running."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def run_with_time_limit(cmd: list[str], cwd: Path, seconds: float | None, grace: float = 600) -> bool:
     """Runs cmd. Returns False if it was stopped at the time limit, True if it finished.
 
     At the limit the whole process group gets SIGINT, which makes the build tool stop its compile
-    jobs and exit with its state consistent, so a later run (possibly on another machine, after the
-    output directory is restored) continues where this one stopped.
+    jobs and save its state, so a later run (possibly on another machine, after the output directory
+    is restored) continues where this one stopped.
+
+    The wrapper (autoninja) exits as soon as it sees SIGINT, but the build tool it started (siso) may
+    still be writing its state file. So this waits, up to `grace` seconds, until every process in the
+    group has exited; only then is the output directory safe to pack.
     """
     print("+", " ".join(cmd), flush=True)
     proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
@@ -119,12 +136,14 @@ def run_with_time_limit(cmd: list[str], cwd: Path, seconds: float | None) -> boo
         code = proc.wait(timeout=seconds)
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGINT)
-        try:
-            proc.wait(timeout=300)
-        except subprocess.TimeoutExpired:
+        started = time.monotonic()
+        if not _wait_group_gone(proc.pid, grace):
+            print("build tool did not stop in time; killing it (its saved state may be incomplete)",
+                  flush=True)
             os.killpg(proc.pid, signal.SIGKILL)
-            proc.wait()
-        print("time limit reached: build stopped, run it again to continue", flush=True)
+        proc.wait()
+        print(f"time limit reached: build stopped and saved its state in "
+              f"{time.monotonic() - started:.0f}s; run it again to continue", flush=True)
         return False
     if code != 0:
         raise subprocess.CalledProcessError(code, cmd)
