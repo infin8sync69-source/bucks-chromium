@@ -1,6 +1,9 @@
 # Builds the Bucks browser on GitHub's free machines, as a chain of up to 8 stages of under 6 hours
 # each (see build-stage.yml). Free and unlimited because this repo is public; bucks-core stays private
 # and is read with a deploy key. The finished browser appears as an artifact of the run.
+#
+# Resume: to continue an earlier run instead of starting over, give its run id and the last stage
+# that finished in it. Its saved source and output (kept 3 days) are reused, so no work is repeated.
 name: build (GitHub machines)
 on:
   workflow_dispatch:
@@ -8,11 +11,21 @@ on:
       profile:
         description: "args profile"
         default: linux_ci
+      resume_run:
+        description: "resume from this earlier run id (empty: start from scratch)"
+        default: ""
+      resume_stage:
+        description: "last stage that finished in that run"
+        default: "0"
+permissions:
+  contents: read
+  actions: read
 concurrency:
   group: build-github-${{ inputs.profile }}
   cancel-in-progress: false
 jobs:
   stage1:
+    if: ${{ inputs.resume_run == '' }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 1
@@ -20,64 +33,78 @@ jobs:
     secrets: inherit
   stage2:
     needs: stage1
-    if: needs.stage1.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage1.result == 'success' && needs.stage1.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 2 && (fromJSON(inputs.resume_stage) == 1 || (needs.stage1.result == 'success' && needs.stage1.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 2
       previous: "1"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 1) && inputs.resume_run || '' }}
     secrets: inherit
   stage3:
     needs: stage2
-    if: needs.stage2.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage2.result == 'success' && needs.stage2.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 3 && (fromJSON(inputs.resume_stage) == 2 || (needs.stage2.result == 'success' && needs.stage2.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 3
       previous: "2"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 2) && inputs.resume_run || '' }}
     secrets: inherit
   stage4:
     needs: stage3
-    if: needs.stage3.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage3.result == 'success' && needs.stage3.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 4 && (fromJSON(inputs.resume_stage) == 3 || (needs.stage3.result == 'success' && needs.stage3.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 4
       previous: "3"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 3) && inputs.resume_run || '' }}
     secrets: inherit
   stage5:
     needs: stage4
-    if: needs.stage4.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage4.result == 'success' && needs.stage4.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 5 && (fromJSON(inputs.resume_stage) == 4 || (needs.stage4.result == 'success' && needs.stage4.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 5
       previous: "4"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 4) && inputs.resume_run || '' }}
     secrets: inherit
   stage6:
     needs: stage5
-    if: needs.stage5.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage5.result == 'success' && needs.stage5.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 6 && (fromJSON(inputs.resume_stage) == 5 || (needs.stage5.result == 'success' && needs.stage5.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 6
       previous: "5"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 5) && inputs.resume_run || '' }}
     secrets: inherit
   stage7:
     needs: stage6
-    if: needs.stage6.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage6.result == 'success' && needs.stage6.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 7 && (fromJSON(inputs.resume_stage) == 6 || (needs.stage6.result == 'success' && needs.stage6.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 7
       previous: "6"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 6) && inputs.resume_run || '' }}
     secrets: inherit
   stage8:
     needs: stage7
-    if: needs.stage7.outputs.done != 'true'
+    if: ${{ !cancelled() && ((inputs.resume_run == '' && (needs.stage7.result == 'success' && needs.stage7.outputs.done != 'true')) || (inputs.resume_run != '' && fromJSON(inputs.resume_stage) < 8 && (fromJSON(inputs.resume_stage) == 7 || (needs.stage7.result == 'success' && needs.stage7.outputs.done != 'true')))) }}
     uses: ./.github/workflows/build-stage.yml
     with:
       stage: 8
       previous: "7"
       profile: ${{ inputs.profile }}
+      src_run: ${{ inputs.resume_run }}
+      out_run: ${{ (inputs.resume_run != '' && fromJSON(inputs.resume_stage) == 7) && inputs.resume_run || '' }}
     secrets: inherit

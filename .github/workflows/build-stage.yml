@@ -19,6 +19,14 @@ on:
       profile:
         type: string
         default: linux_ci
+      src_run:
+        description: "run id holding the src artifact (empty: this run)"
+        type: string
+        default: ""
+      out_run:
+        description: "run id holding the previous stage's output (empty: this run)"
+        type: string
+        default: ""
     outputs:
       done:
         description: "true when the build finished in this stage"
@@ -60,6 +68,10 @@ jobs:
           mv bucks-chromium bucks-core "$WORK/"
           git clone --depth 1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$WORK/depot_tools"
           echo "$WORK/depot_tools" >> "$GITHUB_PATH"
+          # A fresh depot_tools must bootstrap its own Python and tools before gn or autoninja run.
+          # Stage 1 gets this from `gclient sync`; later stages skip that, so do it explicitly.
+          "$WORK/depot_tools/ensure_bootstrap"
+          PATH="$WORK/depot_tools:$PATH" gclient --version
 
       # ---- stage 1: fetch Chromium and save the source -------------------------------------------
       - name: Fetch Chromium and apply Bucks patches
@@ -93,12 +105,16 @@ jobs:
         with:
           name: src
           path: /mnt/bucks/archive
+          run-id: ${{ inputs.src_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Download the previous stage's build output
         if: inputs.stage > 1
         uses: actions/download-artifact@v4
         with:
           name: out-${{ inputs.previous }}
           path: /mnt/bucks/archive
+          run-id: ${{ inputs.out_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Unpack source and build output
         if: inputs.stage > 1
         run: |
