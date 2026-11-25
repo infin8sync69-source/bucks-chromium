@@ -1,0 +1,7 @@
+# Chromium checkout and gclient state
+/src/
+/.gclient
+/.gclient_entries
+/.gclient_previous_*
+/.cipd/
+__pycache__/

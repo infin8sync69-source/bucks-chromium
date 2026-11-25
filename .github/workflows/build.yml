@@ -1,0 +1,29 @@
+# Full Chromium build on the Bucks build server (a self-hosted runner labelled chromium-builder,
+# with depot_tools on PATH). Started by hand until the server exists.
+name: build
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "args profile (linux_release, linux_debug, android_release)"
+        default: linux_release
+jobs:
+  build:
+    runs-on: [self-hosted, chromium-builder]
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: bucks-browser, clean: false }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/bucks-core", path: bucks-core }
+      - name: Fetch or sync Chromium
+        working-directory: bucks-browser
+        run: |
+          ./bucks doctor
+          if [ -d src/.git ]; then ./bucks sync; else ./bucks init; fi
+      - name: Patches apply
+        working-directory: bucks-browser
+        run: ./bucks patches check
+      - name: Build
+        working-directory: bucks-browser
+        run: ./bucks build "${{ inputs.profile }}" --sccache

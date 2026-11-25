@@ -1,0 +1,14 @@
+name: tools
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: bucks-browser }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/bucks-core", path: bucks-core }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python3 -m unittest discover -s tests -v
+        working-directory: bucks-browser

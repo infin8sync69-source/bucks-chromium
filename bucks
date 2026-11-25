@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""Entry point: ./bucks <command>. Run ./bucks --help."""
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "tools"))
+from bucks_cli.main import main  # noqa: E402
+
+sys.exit(main())
