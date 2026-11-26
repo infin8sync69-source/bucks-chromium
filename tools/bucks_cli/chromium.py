@@ -12,7 +12,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from . import patches
+from . import branding, patches
 from .config import CHROMIUM_URL, Config
 
 RELEASES_URL = "https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform={platform}&num=1"
@@ -74,15 +74,34 @@ def init(cfg: Config, android: bool, full_history: bool) -> None:
     link_core(cfg)
     _run(["gclient", "runhooks"], cfg.root)
     apply_patches(cfg)
+    _require_branding(cfg)
 
 
 def sync(cfg: Config) -> None:
-    """Moves an existing checkout to the pinned version and re-applies the patches."""
+    """Moves an existing checkout to the pinned version and re-applies the patches and branding."""
     _require("gclient")
     patches.revert_all(cfg.src, cfg.patches_dir)
+    branding.revert(cfg.src, branding.overlay_dir(cfg.core))
     _run(["gclient", "sync", "-D", "--with_tags", f"--revision=src@refs/tags/{cfg.chromium_version}"], cfg.root)
     link_core(cfg)
     apply_patches(cfg)
+    _require_branding(cfg)
+
+
+def apply_branding(cfg: Config) -> bool:
+    """Copies the Bucks logo files over Chromium's. False if any file no longer fits upstream."""
+    ok = True
+    for rel, st in branding.apply(cfg.src, branding.overlay_dir(cfg.core)):
+        print(f"{st.value:<16} {rel}")
+        ok &= st is branding.State.APPLIED
+    return ok
+
+
+def _require_branding(cfg: Config) -> None:
+    # A build without Bucks branding must never pass silently: stop here instead.
+    if not apply_branding(cfg):
+        sys.exit("Branding does not fit this Chromium version (see above). Regenerate the files in "
+                 "bucks-core with tools/make_branding.py, matching the upstream sizes.")
 
 
 def apply_patches(cfg: Config) -> bool:

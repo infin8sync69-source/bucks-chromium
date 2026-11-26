@@ -51,6 +51,7 @@ it in `chromium.json` as `core_url` and gclient fetches it into `src/bucks` inst
 | `./bucks init [--android]` | Writes `.gclient`, fetches the pinned Chromium tag, links `src/bucks`, runs hooks, applies patches |
 | `./bucks sync` | Reverts patches, moves the checkout to the pinned version, re-applies patches |
 | `./bucks patches status\|apply\|check\|update\|add <path>\|revert` | Patches to upstream files (rules in bucks-core `PATCHES.md`) |
+| `./bucks branding status\|apply\|check\|revert` | Bucks logo files from `bucks-core/branding/overlay` over Chromium's; `init` and `sync` apply them and stop if one no longer fits upstream |
 | `./bucks build <profile> [--sccache] [--target T] [--time-limit MIN]` | `gn gen` and `autoninja` for a profile in `bucks-core/build/args`; with a time limit it stops cleanly and exits 3, and a later run continues |
 | `./bucks version show\|latest\|pin <v>\|pin --latest` | Shows or changes the pinned Chromium version |
 

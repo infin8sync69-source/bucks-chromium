@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import chromium, config, doctor, patches
+from . import branding, chromium, config, doctor, patches
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -27,6 +27,13 @@ def _parser() -> argparse.ArgumentParser:
     add = pt_sub.add_parser("add", help="start tracking an edited upstream file as a patch")
     add.add_argument("path", help="path relative to src/, e.g. chrome/browser/BUILD.gn")
     pt_sub.add_parser("revert", help="restore every patched file to upstream")
+
+    br = sub.add_parser("branding", help="Bucks logo files over Chromium's (bucks-core/branding/overlay)")
+    br_sub = br.add_subparsers(dest="action", required=True)
+    br_sub.add_parser("status", help="show each branded file's state")
+    br_sub.add_parser("apply", help="copy every branded file into src/")
+    br_sub.add_parser("check", help="fail if any branded file no longer fits upstream")
+    br_sub.add_parser("revert", help="restore Chromium's own files")
 
     b = sub.add_parser("build", help="gn gen + autoninja for one profile")
     b.add_argument("profile", help="args profile in bucks-core/build/args, e.g. linux_debug")
@@ -75,7 +82,24 @@ def main(argv: list[str] | None = None) -> int:
             return 3
     elif args.cmd == "patches":
         return _patches(cfg, args)
+    elif args.cmd == "branding":
+        return _branding(cfg, args)
     return 0
+
+
+def _branding(cfg: config.Config, args: argparse.Namespace) -> int:
+    overlay = branding.overlay_dir(cfg.core)
+    if args.action == "apply":
+        return 0 if chromium.apply_branding(cfg) else 1
+    if args.action == "revert":
+        for rel in branding.revert(cfg.src, overlay):
+            print(f"reverted {rel}")
+        return 0
+    results = branding.status(cfg.src, overlay)
+    for rel, st in results:
+        print(f"{st.value:<16} {rel}")
+    bad = [rel for rel, st in results if st in (branding.State.MISSING, branding.State.SIZE)]
+    return 1 if args.action == "check" and bad else 0
 
 
 def _patches(cfg: config.Config, args: argparse.Namespace) -> int:
