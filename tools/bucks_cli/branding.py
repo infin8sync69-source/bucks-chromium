@@ -78,6 +78,33 @@ def apply(src: Path, overlay: Path) -> list[tuple[str, State]]:
     return results
 
 
+LOGO_DIRS = ("chrome/app/theme", "components/resources")
+LOGO_NAMES = re.compile(r"/chromium/(.+/)?(product_logo[^/]*|favicon_product[^/]*)\.png$")
+
+
+def chromium_logos(src: Path) -> list[str]:
+    """Chromium's own logo images (as committed upstream), by path."""
+    out = subprocess.run(["git", "ls-files", "--", *LOGO_DIRS], cwd=src, check=True,
+                         capture_output=True, text=True).stdout.split()
+    return [p for p in out if LOGO_NAMES.search("/" + p)]
+
+
+def leftover_logos(src: Path, packs: list[Path]) -> list[str]:
+    """Chromium logo files whose upstream bytes are still inside the built resource packs.
+
+    Reads each logo as committed (HEAD), so it works after the overlay has replaced the file in the
+    working tree. An empty list means no Chromium logo made it into the browser.
+    """
+    blobs = [p.read_bytes() for p in packs]
+    left = []
+    for rel in chromium_logos(src):
+        original = subprocess.run(["git", "show", f"HEAD:{rel}"], cwd=src, check=True,
+                                  capture_output=True).stdout
+        if original and any(original in b for b in blobs):
+            left.append(rel)
+    return left
+
+
 def revert(src: Path, overlay: Path) -> list[str]:
     """Restores every branded file to upstream with git."""
     paths = [rel for rel, _ in overlay_files(overlay) if (src / rel).exists()]

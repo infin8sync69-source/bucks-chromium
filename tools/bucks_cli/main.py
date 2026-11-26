@@ -34,6 +34,8 @@ def _parser() -> argparse.ArgumentParser:
     br_sub.add_parser("apply", help="copy every branded file into src/")
     br_sub.add_parser("check", help="fail if any branded file no longer fits upstream")
     br_sub.add_parser("revert", help="restore Chromium's own files")
+    vb = br_sub.add_parser("verify-build", help="fail if a Chromium logo is still inside the built browser")
+    vb.add_argument("out_dir", help="build output directory, e.g. out/linux_ci (relative to src/)")
 
     b = sub.add_parser("build", help="gn gen + autoninja for one profile")
     b.add_argument("profile", help="args profile in bucks-core/build/args, e.g. linux_debug")
@@ -95,6 +97,17 @@ def _branding(cfg: config.Config, args: argparse.Namespace) -> int:
         for rel in branding.revert(cfg.src, overlay):
             print(f"reverted {rel}")
         return 0
+    if args.action == "verify-build":
+        packs = sorted((cfg.src / args.out_dir).glob("*.pak"))
+        if not packs:
+            print(f"no .pak files in {cfg.src / args.out_dir}")
+            return 1
+        left = branding.leftover_logos(cfg.src, packs)
+        for rel in left:
+            print(f"CHROMIUM LOGO STILL IN BUILD  {rel}")
+        print(f"checked {len(branding.chromium_logos(cfg.src))} Chromium logo files against {len(packs)} packs: "
+              + ("clean" if not left else f"{len(left)} left"))
+        return 1 if left else 0
     results = branding.status(cfg.src, overlay)
     for rel, st in results:
         print(f"{st.value:<16} {rel}")

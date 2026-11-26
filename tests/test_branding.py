@@ -18,13 +18,17 @@ OVERLAY = branding.overlay_dir(config.load().core)
 UPSTREAM = json.loads((ROOT / "tests" / "fixtures" / "upstream_branding.json").read_text())
 
 
-def png(width: int, height: int) -> bytes:
-    """A valid, tiny, all-black PNG of the given size (standard library only)."""
+def png(width: int, height: int, tag: str = "") -> bytes:
+    """A valid, tiny, all-black PNG of the given size (standard library only).
+
+    `tag` goes into a text chunk so that stand-in files of the same size still differ, as real ones do.
+    """
     def chunk(kind: bytes, data: bytes) -> bytes:
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
     raw = b"".join(b"\x00" + b"\x00" * width for _ in range(height))
+    text = chunk(b"tEXt", b"Comment\x00" + tag.encode()) if tag else b""
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0))
-            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+            + text + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 
 def git(cwd, *args):
@@ -42,7 +46,7 @@ class FakeTree:
             target.parent.mkdir(parents=True, exist_ok=True)
             size = branding.image_size(f)
             if f.suffix == ".png":
-                target.write_bytes(png(*size))
+                target.write_bytes(png(*size, tag=rel))
             elif f.suffix == ".xpm":
                 target.write_text(f'/* XPM */\nstatic char * x[] = {{\n"{size[0]} {size[1]} 1 1",\n}};\n')
             else:
@@ -106,6 +110,39 @@ class ApplyTest(unittest.TestCase):
         rel = "chrome/app/theme/default_100_percent/chromium/product_logo_name_22.png"
         (self.fake.src / rel).unlink()
         self.assertIs(dict(branding.status(self.fake.src, OVERLAY))[rel], branding.State.MISSING)
+
+
+class VerifyBuildTest(unittest.TestCase):
+    def setUp(self):
+        self.fake = FakeTree()
+        self.out = Path(self.fake.tmp.name + "-out")
+        self.out.mkdir()
+
+    def tearDown(self):
+        self.fake.close()
+        shutil.rmtree(self.out, ignore_errors=True)
+
+    def pack(self, *parts: bytes) -> Path:
+        p = self.out / "resources.pak"
+        p.write_bytes(b"PAK" + b"".join(parts))
+        return p
+
+    def test_finds_only_logo_files(self):
+        logos = branding.chromium_logos(self.fake.src)
+        self.assertIn("chrome/app/theme/chromium/product_logo_48.png", logos)
+        self.assertIn("components/resources/default_100_percent/chromium/favicon_product.png", logos)
+        self.assertNotIn("chrome/app/theme/chromium/linux/product_logo_32.xpm", logos)
+
+    def test_branded_build_is_clean(self):
+        branding.apply(self.fake.src, OVERLAY)
+        bucks = [f.read_bytes() for _, f in branding.overlay_files(OVERLAY)]
+        self.assertEqual(branding.leftover_logos(self.fake.src, [self.pack(*bucks)]), [])
+
+    def test_unbranded_logo_is_caught(self):
+        rel = "components/resources/default_200_percent/chromium/favicon_product.png"
+        original = (self.fake.src / rel).read_bytes()
+        branding.apply(self.fake.src, OVERLAY)
+        self.assertEqual(branding.leftover_logos(self.fake.src, [self.pack(b"x", original)]), [rel])
 
 
 class ImageSizeTest(unittest.TestCase):

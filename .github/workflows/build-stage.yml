@@ -185,3 +185,8 @@ jobs:
           path: /mnt/bucks/archive/bucks-${{ inputs.profile }}.tar.zst
           compression-level: 0
           retention-days: 14
+      # After the upload, so the browser is kept for inspection even when this check fails.
+      - name: Check that no Chromium logo is left in the browser
+        if: steps.build.outputs.done == 'true'
+        working-directory: /mnt/bucks/bucks-chromium
+        run: ./bucks branding verify-build "out/$PROFILE"
