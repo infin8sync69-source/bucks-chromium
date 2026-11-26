@@ -13,6 +13,9 @@ sys.path.insert(0, str(ROOT / "tools"))
 from bucks_cli import chromium, config, doctor, patches  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
+# Real Chromium files at the pinned version, at their paths in src/ (BSD licence). Every file that a
+# bucks-core patch touches needs its upstream copy here; AllPatchesTest enforces that.
+UPSTREAM = FIXTURES / "upstream"
 CORE = config.load().core
 BRANDING_PATH = "chrome/app/theme/chromium/BRANDING"
 
@@ -22,19 +25,21 @@ def git(cwd, *args):
 
 
 class FakeChromium:
-    """A git repo holding the real upstream BRANDING file at its Chromium path."""
+    """A git repo holding the real upstream files from tests/fixtures/upstream at their Chromium paths,
+    and a copy of bucks-core's patches (only those touching `only`, when given)."""
 
-    def __init__(self):
+    def __init__(self, only=None):
         self.tmp = tempfile.TemporaryDirectory()
         self.src = Path(self.tmp.name)
-        target = self.src / BRANDING_PATH
-        target.parent.mkdir(parents=True)
-        shutil.copy(FIXTURES / "BRANDING.upstream", target)
+        shutil.copytree(UPSTREAM, self.src, dirs_exist_ok=True)
         git(self.src, "init", "-q")
         git(self.src, "add", ".")
         git(self.src, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "upstream")
         self.patches = Path(self.tmp.name + "-patches")
-        shutil.copytree(CORE / "patches", self.patches)
+        self.patches.mkdir()
+        for patch in patches.list_patches(CORE / "patches"):
+            if only is None or patches.target_of(patch) in only:
+                shutil.copy(patch, self.patches)
 
     def close(self):
         self.tmp.cleanup()
@@ -72,7 +77,7 @@ class GclientTest(unittest.TestCase):
 
 class PatchesTest(unittest.TestCase):
     def setUp(self):
-        self.fake = FakeChromium()
+        self.fake = FakeChromium(only=[BRANDING_PATH])
 
     def tearDown(self):
         self.fake.close()
@@ -99,7 +104,7 @@ class PatchesTest(unittest.TestCase):
         self.assertEqual((pdir / patches.patch_name(BRANDING_PATH)).read_text(), original)
 
         patches.revert_all(src, pdir)
-        self.assertEqual((src / BRANDING_PATH).read_text(), (FIXTURES / "BRANDING.upstream").read_text())
+        self.assertEqual((src / BRANDING_PATH).read_text(), (UPSTREAM / BRANDING_PATH).read_text())
         # A patch whose file matches upstream again is removed by update.
         self.assertIn("removed", patches.update(src, pdir)[0])
 
@@ -119,6 +124,38 @@ class PatchesTest(unittest.TestCase):
             p.unlink()
         log = patches.update(src, pdir, [BRANDING_PATH])
         self.assertEqual(log, ["wrote " + patches.patch_name(BRANDING_PATH)])
+
+
+class AllPatchesTest(unittest.TestCase):
+    """Every bucks-core patch applies cleanly to the pinned upstream files."""
+
+    def test_every_patch_has_an_upstream_copy_and_applies(self):
+        targets = [patches.target_of(p) for p in patches.list_patches(CORE / "patches")]
+        self.assertIn(BRANDING_PATH, targets)
+        for target in targets:
+            self.assertTrue((UPSTREAM / target).is_file(),
+                            f"add the upstream file to tests/fixtures/upstream/{target}")
+        fake = FakeChromium()
+        try:
+            states = patches.status(fake.src, fake.patches)
+            self.assertEqual(len(states), len(targets))
+            for patch, state in states:
+                self.assertIs(state, patches.State.CLEAN, patch.name)
+            for patch, state in patches.apply_all(fake.src, fake.patches):
+                self.assertIs(state, patches.State.APPLIED, patch.name)
+        finally:
+            fake.close()
+
+    def test_root_build_file_pulls_in_bucks(self):
+        if not (CORE / "patches" / patches.patch_name("BUILD.gn")).exists():
+            self.skipTest("bucks-core has no root BUILD.gn patch")
+        fake = FakeChromium(only=["BUILD.gn"])
+        try:
+            patches.apply_all(fake.src, fake.patches)
+            gn_all = (fake.src / "BUILD.gn").read_text().split('group("gn_all")', 1)[1]
+            self.assertIn('"//bucks",', gn_all.split("\n}\n", 1)[0])
+        finally:
+            fake.close()
 
 
 class BuildTest(unittest.TestCase):
